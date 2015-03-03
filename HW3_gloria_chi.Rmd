@@ -1,0 +1,99 @@
+---
+title: HW3_gloria_chi
+output: html_document
+---
+
+Load libraries
+
+```{r}
+library(GEOquery)
+library(Biobase)
+library(data.table)
+library(lumi)
+library(limma)
+library(pheatmap)
+```
+
+Get GEO dataset and pData
+
+```{r}
+gds <- getGEO("GSE40812", destdir="/home/glochi/Documents")
+gds <- getGEO(filename="/home/glochi/Documents/GSE40812_series_matrix.txt.gz")
+gds_new<-gds
+```
+
+Sanitize Data
+```{r}
+sanitize_pdata <- function(pd) {
+    keepCols <- c("title", "geo_accession", "source_name_ch1", "characteristics_ch1",    "characteristics_ch1.2")
+    pd <- pd[, keepCols]
+    colnames(pd) <- c("ptid", "geo", "cell", "inf", "trt") 
+    pd$ptid <- gsub("^[A-Z][A-Z][0-9]+_","", pd$ptid)
+    pd$ptid <- gsub("[A-z]", "", pd$ptid)
+    pd$inf <- gsub("infection status: ", "", pd$inf)
+    pd$trt <- gsub("treatment: ", "", pd$trt)
+    pd <- pd[pd$cell=="Monocyte-derived Macrophage",]
+    pd <- pd[order(pd$ptid),]
+}
+    
+pData(gds_new) <- sanitize_pdata(pData(gds_new))
+```
+
+Normalize Data
+```{r}
+gds_new<-lumiN(gds_new)
+```
+
+Get expression matrix
+```{r}
+ematrix <- exprs(gds_new[,rownames(pData(gds_new))])
+```
+
+Differential expression analysis for trt
+```{r}
+design_trt <- model.matrix(~trt, pData(gds_new))
+fit_trt <- lmFit(ematrix, design_trt)
+eb_trt <- eBayes(fit_trt)
+tt_trt <- topTable(eb_trt, coef=2, number=Inf, adjust.method="BH", p.value=0.05)
+```
+Get probe sets with p-value < 0.05 and fold change > 1.5
+```{r}
+tt_trt <- tt_trt[tt_trt$adj.P.Val<0.1 & abs(tt_trt$logFC)>log2(1.5),]
+ematrix_trt <- ematrix[row.names(tt_trt),]
+```
+Calculate fold change for 1146 probes for each subject's mock and poly
+
+```{r}
+fold <- ematrix_trt[, pData(gds_new)$trt=="Mock"]-ematrix_trt[, pData(gds_new)$trt=="Poly IC H"]
+
+```
+Differential analysis with HCV inf
+```{r}
+pd_inf <- pData(gds_new)[pData(gds_new)$trt=="Mock",  c('ptid', 'inf')]
+pd_inf <- pd_inf[order(pd_inf$ptid),]
+design_inf <- model.matrix(~inf, pd_inf)
+fit_inf <- lmFit(fold, design_inf)
+eb_inf <- eBayes(fit_inf)
+tt_inf <- topTable(eb_inf, coef="infPos", number=Inf)
+#get probes for heatmap, there are 43 with p-values < 0.1
+hmprobe <- tt_inf[tt_inf$P.Value < 0.1,]
+sum(tt_inf$P.Value < 0.1)
+```
+Heatmap
+```{r}
+#get expression matrix for heatmap probes
+ematrix_hm <- ematrix[rownames(hmprobe),]
+#order pd_new by geo to match order in ematrix_hm
+pd_new <-pData(gds_new)[order(pData(gds_new)$geo),]
+#make sure order is right
+all(pData(gds_new)$geo==colnames(ematrix_hm)) #TRUE
+#assign ptid as colnames for ematrix_hm
+colnames(ematrix_hm) <- pData(gds_new)$ptid
+#reorder treatment and HCV inf
+pData(gds_new) <- pData(gds_new)[order(pData(gds_new)$trt, pData(gds_new)$inf, pData(gds_new)$ptid),]
+ematrix_hm <- ematrix_hm[,pData(gds_new)$ptid]
+
+heatmap(ematrix_hm, Rowv=NA, Colv=NA)
+pheatmap(ematrix_hm, cluster_rows=F, cluster_cols=F)
+
+```
