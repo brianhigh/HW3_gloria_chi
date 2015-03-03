@@ -69,6 +69,7 @@ fold <- ematrix_trt[, pData(gds_new)$trt=="Mock"]-ematrix_trt[, pData(gds_new)$t
 ```
 Differential analysis with HCV inf
 ```{r}
+#subset pData to include unique participants by including those in mock
 pd_inf <- pData(gds_new)[pData(gds_new)$trt=="Mock",  c('ptid', 'inf')]
 pd_inf <- pd_inf[order(pd_inf$ptid),]
 design_inf <- model.matrix(~inf, pd_inf)
@@ -77,7 +78,7 @@ eb_inf <- eBayes(fit_inf)
 tt_inf <- topTable(eb_inf, coef="infPos", number=Inf)
 #get probes for heatmap, there are 43 with p-values < 0.1
 hmprobe <- tt_inf[tt_inf$P.Value < 0.1,]
-sum(tt_inf$P.Value < 0.1)
+sum(tt_inf$P.Value < 0.1) #there are 43
 ```
 Heatmap
 ```{r}
