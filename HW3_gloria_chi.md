@@ -1,10 +1,5 @@
----
-title: HW3_gloria_chi
-author: "Gloria Chi"
-output: 
-    html_document:
-        keep_md: yes
----
+# HW3_gloria_chi
+Gloria Chi  
 
 ## Assignment
 
@@ -29,7 +24,8 @@ You will have to:
 
 Set some global knitr options
 
-```{r, cache=FALSE}
+
+```r
 library("knitr")
 opts_chunk$set(tidy=FALSE, cache=TRUE, messages=FALSE, 
                fig.width=5, fig.height=7)
@@ -37,12 +33,83 @@ opts_chunk$set(tidy=FALSE, cache=TRUE, messages=FALSE,
 
 Load libraries
 
-```{r}
+
+```r
 library(GEOquery)
+```
+
+```
+## Loading required package: Biobase
+## Loading required package: BiocGenerics
+## Loading required package: parallel
+## 
+## Attaching package: 'BiocGenerics'
+## 
+## The following objects are masked from 'package:parallel':
+## 
+##     clusterApply, clusterApplyLB, clusterCall, clusterEvalQ,
+##     clusterExport, clusterMap, parApply, parCapply, parLapply,
+##     parLapplyLB, parRapply, parSapply, parSapplyLB
+## 
+## The following object is masked from 'package:stats':
+## 
+##     xtabs
+## 
+## The following objects are masked from 'package:base':
+## 
+##     Filter, Find, Map, Position, Reduce, anyDuplicated, append,
+##     as.data.frame, as.vector, cbind, colnames, do.call,
+##     duplicated, eval, evalq, get, intersect, is.unsorted, lapply,
+##     mapply, match, mget, order, paste, pmax, pmax.int, pmin,
+##     pmin.int, rank, rbind, rep.int, rownames, sapply, setdiff,
+##     sort, table, tapply, union, unique, unlist, unsplit
+## 
+## Welcome to Bioconductor
+## 
+##     Vignettes contain introductory material; view with
+##     'browseVignettes()'. To cite Bioconductor, see
+##     'citation("Biobase")', and for packages 'citation("pkgname")'.
+## 
+## Setting options('download.file.method.GEOquery'='curl')
+```
+
+```r
 library(Biobase)
 library(data.table)
 library(beadarray)
+```
+
+```
+## Loading required package: ggplot2
+```
+
+```
+## Warning in fun(libname, pkgname): couldn't connect to display ":0"
+```
+
+```
+## Welcome to beadarray version 2.16.0
+## beadarray versions >= 2.0.0 are substantial updates from beadarray 1.16.0 and earlier. Please see package vignette for details
+```
+
+```r
 library(limma)
+```
+
+```
+## 
+## Attaching package: 'limma'
+## 
+## The following object is masked from 'package:beadarray':
+## 
+##     imageplot
+## 
+## The following object is masked from 'package:BiocGenerics':
+## 
+##     plotMA
+```
+
+```r
 library(stringr)
 library(pheatmap)
 ```
@@ -51,13 +118,23 @@ library(pheatmap)
 
 Get GEO dataset
 
-```{r}
+
+```r
 gds <- getGEO("GSE40812", destdir="./")[[1]]
+```
+
+```
+## ftp://ftp.ncbi.nlm.nih.gov/geo/series/GSE40nnn/GSE40812/matrix/
+## Found 1 file(s)
+## GSE40812_series_matrix.txt.gz
+## File stored at: 
+## .//GPL10558.soft
 ```
 
 ## Clean up data
 
-```{r}
+
+```r
 sanitize_pdata <- function(pd) {
     keepCols <- c("title", "source_name_ch1", "characteristics_ch1", 
                   "characteristics_ch1.2")
@@ -77,20 +154,23 @@ pData(gds) <- sanitize_pdata(pData(gds))
 
 ## Normalize data
 
-```{r}
+
+```r
 gds <- normaliseIllumina(gds, method='quantile')
 ```
 
 ## Test for differential expression
 
 Get expression matrix
-```{r}
+
+```r
 pd <- pData(gds)
 ematrix <- exprs(gds[,rownames(pd)])
 ```
 
 Differential expression analysis for trt
-```{r}
+
+```r
 design_trt <- model.matrix(~trt, pd)
 fit_trt <- lmFit(ematrix, design_trt)
 eb_trt <- eBayes(fit_trt)
@@ -98,18 +178,21 @@ tt_trt <- topTable(eb_trt, coef="trtPolyIC", number=Inf, adjust.method="BH")
 ```
 
 Get probe sets with p-value < 0.05 and fold change > 1.5
-```{r}
+
+```r
 tt_trt <- tt_trt[tt_trt$adj.P.Val<0.05 & abs(tt_trt$logFC)>log2(1.5),]
 ematrix_trt <- ematrix[row.names(tt_trt),]
 ```
 
 Calculate fold change for 1146 probes for each subject's mock and poly
-```{r}
+
+```r
 fold <- ematrix_trt[, pd$trt=="Mock"]-ematrix_trt[, pd$trt=="PolyIC"]
 ```
 
 Differential analysis with HCV inf
-```{r}
+
+```r
 #subset pData to include unique participants by including those in mock
 pd_inf <- pd[pd$trt=="Mock",  c('ptid', 'inf')]
 pd_inf <- pd_inf[order(pd_inf$ptid),]
@@ -122,9 +205,14 @@ hmprobe <- tt_inf[tt_inf$P.Value < 0.1,]
 sum(tt_inf$P.Value < 0.1) ## number of probes
 ```
 
+```
+## [1] 43
+```
+
 ## Display heatmap with `pheatmap`
 
-```{r}
+
+```r
 #get expression matrix for heatmap probes
 ematrix_hm <- ematrix[rownames(hmprobe),]
 #assign ptid as colnames for ematrix_hm
@@ -138,12 +226,15 @@ colnames(ematrix_hm) <- str_trim(paste(pd$trt, pd$inf, pd$ptid, sep="_"))
 pheatmap(ematrix_hm, cluster_rows=F, cluster_cols=F)
 ```
 
+![](HW3_gloria_chi_files/figure-html/unnamed-chunk-11-1.png) 
+
 ## Display modified heatmap with `pheatmap`
 
 You can use clustering, scaling, and color palette features to approximate the
 published figure.
 
-```{r, echo=TRUE}
+
+```r
 drows <- dist(ematrix_hm, method = "euclidean")
 hmcols<-colorRampPalette(c("red", "orange", "lightyellow"))(20)
 pheatmap(ematrix_hm, cluster_cols=FALSE, cluster_rows=TRUE, 
@@ -152,12 +243,19 @@ pheatmap(ematrix_hm, cluster_cols=FALSE, cluster_rows=TRUE,
          color = hmcols) 
 ```
 
+```
+## The "ward" method has been renamed to "ward.D"; note new "ward.D2"
+```
+
+![](HW3_gloria_chi_files/figure-html/unnamed-chunk-12-1.png) 
+
 ## Display heatmap with `heatmap`
 
 Using the `heatmap` function from the stats package will allow you to get 
 even closer to the published figure.
 
-```{r}
+
+```r
 library(stats)
 hmcols<-colorRampPalette(c("red", "orange", "lightyellow"))(20)
 heatmap(ematrix_hm, Colv=NA, labRow=NA, keep.dendro=FALSE, 
@@ -166,6 +264,8 @@ heatmap(ematrix_hm, Colv=NA, labRow=NA, keep.dendro=FALSE,
         cexRow=0.5, cexCol=0.5, col=hmcols)
 ```
 
+![](HW3_gloria_chi_files/figure-html/unnamed-chunk-13-1.png) 
+
 ## Display heatmap with `heatmap.2`
 
 To get the same color key shown in the published figure, we can use the 
@@ -173,8 +273,21 @@ To get the same color key shown in the published figure, we can use the
 on the upper-right, aligned with the right edge of the heatmap requires some 
 layout and margin adjustments.
 
-```{r}
+
+```r
 library(gplots)
+```
+
+```
+## 
+## Attaching package: 'gplots'
+## 
+## The following object is masked from 'package:stats':
+## 
+##     lowess
+```
+
+```r
 hclust.ward <- function(x) hclust(x, method="ward.D2")
 dist.eucl <- function(x) dist(x, method="euclidean")
 heatmap.2(ematrix_hm, scale="row", dendrogram = "none",  
@@ -184,3 +297,5 @@ heatmap.2(ematrix_hm, scale="row", dendrogram = "none",
           hclustfun=hclust.ward, distfun=dist.eucl, Colv=NA, 
           key=TRUE, keysize=1.0)
 ```
+
+![](HW3_gloria_chi_files/figure-html/unnamed-chunk-14-1.png) 
